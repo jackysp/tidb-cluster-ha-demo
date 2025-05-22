@@ -1,0 +1,29 @@
+# Topology file for cluster B
+# TiDB version: v8.5.1
+
+global:
+  user: "tidb"
+  ssh_port: 22
+  deploy_dir: "/tidb-deploy"
+  data_dir: "/tidb-data"
+
+pd_servers:
+  - host: 10.148.0.6
+
+tidb_servers:
+  - host: 10.148.0.6
+
+tikv_servers:
+  - host: 10.148.0.6
+
+cdc_servers:
+  - host: 10.148.0.6
+
+monitoring_servers:
+  - host: 10.148.0.6
+
+grafana_servers:
+  - host: 10.148.0.6
+
+alertmanager_servers:
+  - host: 10.148.0.6

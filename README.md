@@ -1,2 +1,1 @@
-# tidb-cluster-ha-demo
-A demo repository for TiDB cluster high availability
+This repository is empty. Any task executed on it should be considered a new capability and needs to be created.

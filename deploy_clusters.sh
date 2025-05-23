@@ -40,7 +40,7 @@ tiup br backup full --pd ${CLUSTER_C_IP}:2383 --storage "local:///br_data/cluste
 tiup br backup full --pd ${CLUSTER_D_IP}:2385 --storage "local:///br_data/cluster_D"
 
 # Start TiDB log backup for PiTR
-tiup br log start --task-name=pitr_A --pd ${CLUSTER_A_IP}:2379 --storage "local:///br_data/cluster_A_log"
-tiup br log start --task-name=pitr_B --pd ${CLUSTER_B_IP}:2381 --storage "local:///br_data/cluster_B_log"
-tiup br log start --task-name=pitr_C --pd ${CLUSTER_C_IP}:2383 --storage "local:///br_data/cluster_C_log"
-tiup br log start --task-name=pitr_D --pd ${CLUSTER_D_IP}:2385 --storage "local:///br_data/cluster_D_log"
+#tiup br log start --task-name=pitr_A --pd ${CLUSTER_A_IP}:2379 --storage "local:///br_data/cluster_A_log"
+#tiup br log start --task-name=pitr_B --pd ${CLUSTER_B_IP}:2381 --storage "local:///br_data/cluster_B_log"
+#tiup br log start --task-name=pitr_C --pd ${CLUSTER_C_IP}:2383 --storage "local:///br_data/cluster_C_log"
+#tiup br log start --task-name=pitr_D --pd ${CLUSTER_D_IP}:2385 --storage "local:///br_data/cluster_D_log"

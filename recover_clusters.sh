@@ -2,44 +2,79 @@
 
 # Recover clusters in case of failure
 
-# Cluster IPs
-CLUSTER_B_IP="10.148.0.5"
-CLUSTER_C_IP="10.148.0.5"
-CLUSTER_D_IP="10.148.0.5"
+# Cluster IPs, SQL ports and version
+TIDB_VERSION="v8.5.1"
+CLUSTER_B_IP="10.148.0.5"; CLUSTER_B_SQL_PORT=4001
+CLUSTER_C_IP="10.148.0.5"; CLUSTER_C_SQL_PORT=4002
+CLUSTER_D_IP="10.148.0.5"; CLUSTER_D_SQL_PORT=4003
 
-# Check the syncpoint table in clusters B, C, and D
-LATEST_CLUSTER=""
-LATEST_TIMESTAMP=0
-
+# Step 1: compare latest primary_ts of each cluster and mark most recent as new primary
+NEW_PRIMARY_CLUSTER=""
+NEW_PRIMARY_TS=0
 for CLUSTER_IP in $CLUSTER_B_IP $CLUSTER_C_IP $CLUSTER_D_IP; do
-  TIMESTAMP=$(mysql -h $CLUSTER_IP -u root -e "SELECT MAX(ts) FROM tidb_cdc.syncpoint")
-  if [ $TIMESTAMP -gt $LATEST_TIMESTAMP ]; then
-    LATEST_TIMESTAMP=$TIMESTAMP
-    LATEST_CLUSTER=$CLUSTER_IP
+  # map SQL port per cluster
+  if [ "$CLUSTER_IP" = "$CLUSTER_B_IP" ]; then SQL_PORT=$CLUSTER_B_SQL_PORT
+  elif [ "$CLUSTER_IP" = "$CLUSTER_C_IP" ]; then SQL_PORT=$CLUSTER_C_SQL_PORT
+  else SQL_PORT=$CLUSTER_D_SQL_PORT; fi
+  # fetch max primary_ts and secondary_ts
+  read PRIMARY_TS SECONDARY_TS <<< $(mysql -h $CLUSTER_IP -P $SQL_PORT -u root -N -e \
+    "SELECT IFNULL(MAX(CAST(primary_ts AS UNSIGNED)),0), IFNULL(MAX(CAST(secondary_ts AS UNSIGNED)),0) FROM tidb_cdc.syncpoint_v1")
+  # store per-cluster timestamps
+  if [ "$CLUSTER_IP" = "$CLUSTER_B_IP" ]; then
+    PRIMARY_TS_B=$PRIMARY_TS; SECONDARY_TS_B=$SECONDARY_TS
+  elif [ "$CLUSTER_IP" = "$CLUSTER_C_IP" ]; then
+    PRIMARY_TS_C=$PRIMARY_TS; SECONDARY_TS_C=$SECONDARY_TS
+  else
+    PRIMARY_TS_D=$PRIMARY_TS; SECONDARY_TS_D=$SECONDARY_TS
+  fi
+  # update new primary if this cluster has a higher primary_ts
+  if [ $PRIMARY_TS -gt $NEW_PRIMARY_TS ]; then
+    NEW_PRIMARY_TS=$PRIMARY_TS
+    NEW_PRIMARY_CLUSTER_IP=$CLUSTER_IP
+    NEW_PRIMARY_CLUSTER_PORT=$SQL_PORT
   fi
 done
 
-echo "Cluster with the latest data: $LATEST_CLUSTER"
+echo "New primary cluster: $NEW_PRIMARY_CLUSTER_IP:$NEW_PRIMARY_CLUSTER_PORT with primary_ts $NEW_PRIMARY_TS"
 
-# Recover clusters B, C, and D to their latest consistent snapshot using PiTR
+# Step 2: flashback other clusters to their latest secondary_ts
 for CLUSTER_IP in $CLUSTER_B_IP $CLUSTER_C_IP $CLUSTER_D_IP; do
-  case $CLUSTER_IP in
-    *5) PD_PORT=2379;;
-    *5) PD_PORT=2381;;
-    *5) PD_PORT=2383;;
-    *5) PD_PORT=2385;;
-  esac
-  tiup br restore full --pd $CLUSTER_IP:$PD_PORT --storage "local:///br_data/cluster_${CLUSTER_IP##*.}"
+  if [ "$CLUSTER_IP" != "$NEW_PRIMARY_CLUSTER" ]; then
+    # determine TiDB SQL port and secondary TSO
+    if [ "$CLUSTER_IP" = "$CLUSTER_B_IP" ]; then
+      TIDB_PORT=4001; TSO=$SECONDARY_TS_B
+    elif [ "$CLUSTER_IP" = "$CLUSTER_C_IP" ]; then
+      TIDB_PORT=4002; TSO=$SECONDARY_TS_C
+    else
+      TIDB_PORT=4003; TSO=$SECONDARY_TS_D
+    fi
+    echo "Flashing back cluster at $CLUSTER_IP:$TIDB_PORT to TSO $TSO"
+    mysql -h $CLUSTER_IP -P $TIDB_PORT -u root -e "FLASHBACK CLUSTER TO TSO $TSO;"
+  fi
 done
 
-# Recreate the changefeed from the recovered cluster to the other clusters
+# Step 3: find suitable changefeed start TSO for new changefeeds (TODO)
+# For now, start from new primary's secondary_ts
+CHANGEFEED_START_TS=$SECONDARY_TS_B
+# TODO: implement logic to choose optimal start TSO from existing syncpoints.
+
+echo "Changefeed will start from TSO $CHANGEFEED_START_TS"
+
+# Step 4: create new changefeeds from new primary to other clusters
 for CLUSTER_IP in $CLUSTER_B_IP $CLUSTER_C_IP $CLUSTER_D_IP; do
-  if [ "$CLUSTER_IP" != "$LATEST_CLUSTER" ]; then
-    case $CLUSTER_IP in
-      *5) CDC_PORT=4001;;
-      *5) CDC_PORT=4002;;
-      *5) CDC_PORT=4003;;
-    esac
-    tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@${CLUSTER_IP}:$CDC_PORT/" --config=./cdc_config.toml
+  if [ "$CLUSTER_IP" != "$NEW_PRIMARY_CLUSTER" ]; then
+    # determine CDC port and cluster name
+    if [ "$CLUSTER_IP" = "$CLUSTER_B_IP" ]; then
+      CDC_PORT=4001; CLUSTER_NAME=cluster_B
+    elif [ "$CLUSTER_IP" = "$CLUSTER_C_IP" ]; then
+      CDC_PORT=4002; CLUSTER_NAME=cluster_C
+    else
+      CDC_PORT=4003; CLUSTER_NAME=cluster_D
+    fi
+    echo "Creating changefeed to $CLUSTER_NAME starting at TSO $CHANGEFEED_START_TS"
+    tiup ctl:$TIDB_VERSION cdc changefeed create \
+      --sink-uri="mysql://root@${CLUSTER_IP}:$CDC_PORT/" \
+      --start-ts=$CHANGEFEED_START_TS \
+      --config=./cdc_config.toml
   fi
 done

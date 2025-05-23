@@ -53,28 +53,25 @@ for CLUSTER_IP in $CLUSTER_B_IP $CLUSTER_C_IP $CLUSTER_D_IP; do
   fi
 done
 
-# Step 3: find suitable changefeed start TSO for new changefeeds (TODO)
-# For now, start from new primary's secondary_ts
-CHANGEFEED_START_TS=$SECONDARY_TS_B
-# TODO: implement logic to choose optimal start TSO from existing syncpoints.
-
-echo "Changefeed will start from TSO $CHANGEFEED_START_TS"
-
-# Step 4: create new changefeeds from new primary to other clusters
+# Step 3 & 4: for each downstream cluster, compute start TS and create changefeed
+echo "Recreating changefeeds from new primary $NEW_PRIMARY_CLUSTER_IP:$NEW_PRIMARY_CLUSTER_PORT"
 for CLUSTER_IP in $CLUSTER_B_IP $CLUSTER_C_IP $CLUSTER_D_IP; do
-  if [ "$CLUSTER_IP" != "$NEW_PRIMARY_CLUSTER" ]; then
-    # determine CDC port and cluster name
+  if [ "$CLUSTER_IP" != "$NEW_PRIMARY_CLUSTER_IP" ]; then
+    # map ports and cluster name
     if [ "$CLUSTER_IP" = "$CLUSTER_B_IP" ]; then
-      CDC_PORT=4001; CLUSTER_NAME=cluster_B
+      SQL_PORT=$CLUSTER_B_SQL_PORT; CDC_PORT=4001; CLUSTER_NAME=cluster_B; TARGET_PRIMARY=$PRIMARY_TS_B
     elif [ "$CLUSTER_IP" = "$CLUSTER_C_IP" ]; then
-      CDC_PORT=4002; CLUSTER_NAME=cluster_C
+      SQL_PORT=$CLUSTER_C_SQL_PORT; CDC_PORT=4002; CLUSTER_NAME=cluster_C; TARGET_PRIMARY=$PRIMARY_TS_C
     else
-      CDC_PORT=4003; CLUSTER_NAME=cluster_D
+      SQL_PORT=$CLUSTER_D_SQL_PORT; CDC_PORT=4003; CLUSTER_NAME=cluster_D; TARGET_PRIMARY=$PRIMARY_TS_D
     fi
-    echo "Creating changefeed to $CLUSTER_NAME starting at TSO $CHANGEFEED_START_TS"
+    # compute start TSO from primary history where primary_ts <= target_primary
+    START_TS=$(mysql -h $NEW_PRIMARY_CLUSTER_IP -P $NEW_PRIMARY_CLUSTER_PORT -u root -N -e \
+      "SELECT IFNULL(MAX(CAST(secondary_ts AS UNSIGNED)),0) FROM tidb_cdc.syncpoint_v1 WHERE CAST(primary_ts AS UNSIGNED) <= $TARGET_PRIMARY")
+    echo "  To $CLUSTER_NAME, primary_ts=$TARGET_PRIMARY -> start-ts=$START_TS"
     tiup ctl:$TIDB_VERSION cdc changefeed create \
       --sink-uri="mysql://root@${CLUSTER_IP}:$CDC_PORT/" \
-      --start-ts=$CHANGEFEED_START_TS \
+      --start-ts=$START_TS \
       --config=./cdc_config.toml
   fi
 done

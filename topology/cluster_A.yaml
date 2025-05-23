@@ -4,26 +4,38 @@
 global:
   user: "tidb"
   ssh_port: 22
-  deploy_dir: "/tidb-deploy"
-  data_dir: "/tidb-data"
+  deploy_dir: "/tidb-deploy/cluster_A"
+  data_dir: "/tidb-data/cluster_A"
 
 pd_servers:
   - host: 10.148.0.5
+    client_port: 2379
+    peer_port: 2380
+    config:
+      replication.max-replicas: 1
 
 tidb_servers:
   - host: 10.148.0.5
+    port: 4000
+    status_port: 10080
 
 tikv_servers:
   - host: 10.148.0.5
+    port: 20160
+    status_port: 20180
 
 cdc_servers:
   - host: 10.148.0.5
+    port: 8300
 
 monitoring_servers:
   - host: 10.148.0.5
+    port: 9090
 
 grafana_servers:
   - host: 10.148.0.5
+    port: 3000
 
 alertmanager_servers:
   - host: 10.148.0.5
+    web_port: 9093

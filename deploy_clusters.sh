@@ -1,30 +1,31 @@
 #!/bin/bash
+set -e
 
 # Deploy TiDB clusters using TiUP
 
 # Cluster IPs
 CLUSTER_A_IP="10.148.0.5"
-CLUSTER_B_IP="10.148.0.6"
-CLUSTER_C_IP="10.148.0.9"
-CLUSTER_D_IP="10.148.0.12"
+CLUSTER_B_IP="10.148.0.5"
+CLUSTER_C_IP="10.148.0.5"
+CLUSTER_D_IP="10.148.0.5"
 
 # TiDB version
 TIDB_VERSION="v8.5.1"
 
 # Deploy cluster A
-tiup cluster deploy cluster_A $TIDB_VERSION ./topology/cluster_A.yaml --user root -i ~/.ssh/id_rsa
+tiup cluster deploy cluster_A $TIDB_VERSION ./topology/cluster_A.yaml
 tiup cluster start cluster_A
 
 # Deploy cluster B
-tiup cluster deploy cluster_B $TIDB_VERSION ./topology/cluster_B.yaml --user root -i ~/.ssh/id_rsa
+tiup cluster deploy cluster_B $TIDB_VERSION ./topology/cluster_B.yaml
 tiup cluster start cluster_B
 
 # Deploy cluster C
-tiup cluster deploy cluster_C $TIDB_VERSION ./topology/cluster_C.yaml --user root -i ~/.ssh/id_rsa
+tiup cluster deploy cluster_C $TIDB_VERSION ./topology/cluster_C.yaml
 tiup cluster start cluster_C
 
 # Deploy cluster D
-tiup cluster deploy cluster_D $TIDB_VERSION ./topology/cluster_D.yaml --user root -i ~/.ssh/id_rsa
+tiup cluster deploy cluster_D $TIDB_VERSION ./topology/cluster_D.yaml
 tiup cluster start cluster_D
 
 # Enable CDC syncpoint for each changefeed

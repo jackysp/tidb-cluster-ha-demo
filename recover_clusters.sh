@@ -3,9 +3,9 @@
 # Recover clusters in case of failure
 
 # Cluster IPs
-CLUSTER_B_IP="10.148.0.6"
-CLUSTER_C_IP="10.148.0.9"
-CLUSTER_D_IP="10.148.0.12"
+CLUSTER_B_IP="10.148.0.5"
+CLUSTER_C_IP="10.148.0.5"
+CLUSTER_D_IP="10.148.0.5"
 
 # Check the syncpoint table in clusters B, C, and D
 LATEST_CLUSTER=""

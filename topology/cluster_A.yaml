@@ -28,14 +28,6 @@ cdc_servers:
   - host: 10.148.0.5
     port: 8300
 
-monitoring_servers:
-  - host: 10.148.0.5
-    port: 9090
-
-grafana_servers:
-  - host: 10.148.0.5
-    port: 3000
-
-alertmanager_servers:
-  - host: 10.148.0.5
-    web_port: 9093
+monitored:
+  node_exporter_port: 9100
+  blackbox_exporter_port: 9115

@@ -1,0 +1,2 @@
+# CDC changefeed configuration for syncpoint
+enable-sync-point = true

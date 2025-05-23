@@ -5,9 +5,18 @@ This repository demonstrates a high availability (HA) setup for TiDB clusters. I
 ## Cluster IP Map
 
 - A: 10.148.0.5
-- B: 10.148.0.6
-- C: 10.148.0.9
-- D: 10.148.0.12
+- B: 10.148.0.5
+- C: 10.148.0.5
+- D: 10.148.0.5
+
+## Host and Port Map (single host: 10.148.0.5)
+
+All clusters share the same host but use distinct ports:
+
+- Cluster A: PD 2379, TiDB 4000, TiKV 20160
+- Cluster B: PD 2381, TiDB 4001, TiKV 20161
+- Cluster C: PD 2383, TiDB 4002, TiKV 20162
+- Cluster D: PD 2385, TiDB 4003, TiKV 20163
 
 ## TiDB Version
 
@@ -16,17 +25,33 @@ The TiDB version used in this demo is v8.5.1.
 ## Setting Up TiDB Clusters Using TiUP
 
 1. Install TiUP by following the instructions on the [TiUP website](https://tiup.io/).
-2. Deploy the four TiDB clusters (A, B, C, and D) on the specified IP addresses using the `scripts/deploy_clusters.sh` script.
+2. Deploy the four TiDB clusters (A, B, C, and D) on the host 10.148.0.5 using the `./deploy_clusters.sh` script.
 
 ## Enabling CDC Syncpoint for Each Changefeed
 
 1. Ensure that the TiCDC component is installed and running on each cluster.
-2. Enable CDC syncpoint for each changefeed from A to B, A to C, and A to D by following the instructions in the `scripts/deploy_clusters.sh` script.
+2. Enable CDC syncpoint for each changefeed by running:
+
+   ```bash
+   # Changefeed A->B
+   tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@10.148.0.5:4001/" --config=./cdc_config.toml
+   # Changefeed A->C
+   tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@10.148.0.5:4002/" --config=./cdc_config.toml
+   # Changefeed A->D
+   tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@10.148.0.5:4003/" --config=./cdc_config.toml
+   ```
 
 ## Enabling PiTR for All Clusters Using BR Tools
 
-1. Ensure that the BR (Backup & Restore) tools are installed on each cluster.
-2. Enable PiTR for all four clusters by following the instructions in the `scripts/deploy_clusters.sh` script.
+1. Ensure that the BR (Backup & Restore) tools are installed.
+2. Run backups:
+
+   ```bash
+   tiup br backup full --pd 10.148.0.5:2379 --storage "local:///br_data/cluster_A"
+   tiup br backup full --pd 10.148.0.5:2381 --storage "local:///br_data/cluster_B"
+   tiup br backup full --pd 10.148.0.5:2383 --storage "local:///br_data/cluster_C"
+   tiup br backup full --pd 10.148.0.5:2385 --storage "local:///br_data/cluster_D"
+   ```
 
 ## Recovering Clusters and Recreating Changefeeds in Case of Failure
 

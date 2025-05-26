@@ -57,4 +57,7 @@ The TiDB version used in this demo is v8.5.1.
 
 1. In case of failure of cluster A, check the syncpoint table in clusters B, C, and D to determine which one has the latest data from A.
 2. Use PiTR to recover clusters B, C, and D to their latest consistent snapshot.
+
+> **Note:** FLASHBACK only reverts DML changes to the specified TSO. It cannot undo DDLs executed after that point. Ensure you wait for a fresh CDC syncpoint covering any DDLs before recovery.
+
 3. Recreate the changefeed from the recovered cluster to the other clusters by following the instructions in the `scripts/recover_clusters.sh` script.

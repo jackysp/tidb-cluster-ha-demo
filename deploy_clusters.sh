@@ -3,6 +3,12 @@ set -e
 
 # Deploy TiDB clusters using TiUP
 
+# Destroy existing clusters if they exist
+tiup cluster destroy cluster_A -y || true
+tiup cluster destroy cluster_B -y || true
+tiup cluster destroy cluster_C -y || true
+tiup cluster destroy cluster_D -y || true
+
 # Cluster IPs
 CLUSTER_A_IP="10.148.0.5"
 CLUSTER_B_IP="10.148.0.5"
@@ -34,13 +40,22 @@ tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@${CLUSTER_C_IP}:4
 tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@${CLUSTER_D_IP}:4003/" --config=./cdc_config.toml
 
 # Enable PiTR for all clusters using BR tools
-tiup br backup full --pd ${CLUSTER_A_IP}:2379 --storage "local:///br_data/cluster_A"
-tiup br backup full --pd ${CLUSTER_B_IP}:2381 --storage "local:///br_data/cluster_B"
-tiup br backup full --pd ${CLUSTER_C_IP}:2383 --storage "local:///br_data/cluster_C"
-tiup br backup full --pd ${CLUSTER_D_IP}:2385 --storage "local:///br_data/cluster_D"
+#tiup br backup full --pd ${CLUSTER_A_IP}:2379 --storage "local:///br_data/cluster_A"
+#tiup br backup full --pd ${CLUSTER_B_IP}:2381 --storage "local:///br_data/cluster_B"
+#tiup br backup full --pd ${CLUSTER_C_IP}:2383 --storage "local:///br_data/cluster_C"
+#tiup br backup full --pd ${CLUSTER_D_IP}:2385 --storage "local:///br_data/cluster_D"
 
 # Start TiDB log backup for PiTR
 #tiup br log start --task-name=pitr_A --pd ${CLUSTER_A_IP}:2379 --storage "local:///br_data/cluster_A_log"
 #tiup br log start --task-name=pitr_B --pd ${CLUSTER_B_IP}:2381 --storage "local:///br_data/cluster_B_log"
 #tiup br log start --task-name=pitr_C --pd ${CLUSTER_C_IP}:2383 --storage "local:///br_data/cluster_C_log"
 #tiup br log start --task-name=pitr_D --pd ${CLUSTER_D_IP}:2385 --storage "local:///br_data/cluster_D_log"
+
+# Connect to cluster A: create database/table and insert data
+mysql -h ${CLUSTER_A_IP} -P4000 -u root <<EOF
+CREATE TABLE IF NOT EXISTS users (
+  id INT PRIMARY KEY,
+  name VARCHAR(50)
+);
+INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob');
+EOF

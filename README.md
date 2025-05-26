@@ -41,23 +41,26 @@ The TiDB version used in this demo is v8.5.1.
    tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@10.148.0.5:4003/" --config=./cdc_config.toml
    ```
 
-## Enabling PiTR for All Clusters Using BR Tools
-
-1. Ensure that the BR (Backup & Restore) tools are installed.
-2. Run backups:
-
-   ```bash
-   tiup br backup full --pd 10.148.0.5:2379 --storage "local:///br_data/cluster_A"
-   tiup br backup full --pd 10.148.0.5:2381 --storage "local:///br_data/cluster_B"
-   tiup br backup full --pd 10.148.0.5:2383 --storage "local:///br_data/cluster_C"
-   tiup br backup full --pd 10.148.0.5:2385 --storage "local:///br_data/cluster_D"
-   ```
-
 ## Recovering Clusters and Recreating Changefeeds in Case of Failure
 
 1. In case of failure of cluster A, check the syncpoint table in clusters B, C, and D to determine which one has the latest data from A.
-2. Use PiTR to recover clusters B, C, and D to their latest consistent snapshot.
+2. Use Flashback to revert clusters B, C, and D to their latest consistent snapshot.
 
 > **Note:** FLASHBACK only reverts DML changes to the specified TSO. It cannot undo DDLs executed after that point. Ensure you wait for a fresh CDC syncpoint covering any DDLs before recovery.
 
 3. Recreate the changefeed from the recovered cluster to the other clusters by following the instructions in the `scripts/recover_clusters.sh` script.
+
+## Enabling Stale Reads on Secondary Clusters (Minimal Changes)
+
+To perform a stale (historical) read on a secondary cluster (B, C, or D) with minimal changes:
+
+1. Apply that TSO and enable external-Timestamp read:
+   ```sql
+   -- On the secondary cluster
+   SET GLOBAL tidb_enable_external_ts_read = ON;
+   ```
+1. Run your SELECT queries: they now return data as of the latest syncpoint.
+1. When finished, disable stale reads and return to normal mode:
+   ```sql
+   SET GLOBAL tidb_enable_external_ts_read = OFF;
+   ```

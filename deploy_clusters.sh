@@ -53,6 +53,7 @@ tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@${CLUSTER_D_IP}:4
 
 # Connect to cluster A: create database/table and insert data
 mysql -h ${CLUSTER_A_IP} -P4000 -u root <<EOF
+USE TEST;
 CREATE TABLE IF NOT EXISTS users (
   id INT PRIMARY KEY,
   name VARCHAR(50)

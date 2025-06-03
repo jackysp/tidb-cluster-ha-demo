@@ -1,0 +1,8 @@
+# CDC config for cf-A-to-D changefeed
+# syncpoint
+enable-sync-point = true
+sync-point-interval = "30s"
+
+[consistent]
+level = "eventual"
+storage = "file:///tidb-data/cluster_A/redo/cf-A-to-D"

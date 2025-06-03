@@ -1,3 +1,0 @@
-# CDC changefeed configuration for syncpoint
-enable-sync-point = true
-sync-point-interval = "30s"

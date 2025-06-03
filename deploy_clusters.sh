@@ -34,10 +34,24 @@ tiup cluster start cluster_C
 tiup cluster deploy cluster_D $TIDB_VERSION ./topology/cluster_D.yaml -y
 tiup cluster start cluster_D
 
-# Enable CDC syncpoint for each changefeed
-tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@${CLUSTER_B_IP}:4001/" --config=./cdc_config.toml
-tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@${CLUSTER_C_IP}:4002/" --config=./cdc_config.toml
-tiup ctl:v8.5.1 cdc changefeed create --sink-uri="mysql://root@${CLUSTER_D_IP}:4003/" --config=./cdc_config.toml
+sudo mkdir -p /tidb-data/cluster_A/redo
+sudo chmod a+rwx /tidb-data/cluster_A/redo
+
+# Enable CDC changefeeds with eventual consistency (GCS storage)
+tiup ctl:$TIDB_VERSION cdc changefeed create --server="${CLUSTER_A_IP}:8300" \
+  --sink-uri="mysql://root@${CLUSTER_B_IP}:4001/" \
+  --config=./cdc-cf-A-to-B.toml \
+  --changefeed-id="cf-A-to-B"
+
+tiup ctl:$TIDB_VERSION cdc changefeed create --server="${CLUSTER_A_IP}:8300" \
+  --sink-uri="mysql://root@${CLUSTER_C_IP}:4002/" \
+  --config=./cdc-cf-A-to-C.toml \
+  --changefeed-id="cf-A-to-C"
+
+tiup ctl:$TIDB_VERSION cdc changefeed create --server="${CLUSTER_A_IP}:8300" \
+  --sink-uri="mysql://root@${CLUSTER_D_IP}:4003/" \
+  --config=./cdc-cf-A-to-D.toml \
+  --changefeed-id="cf-A-to-D"
 
 # Enable PiTR for all clusters using BR tools
 #tiup br backup full --pd ${CLUSTER_A_IP}:2379 --storage "local:///br_data/cluster_A"

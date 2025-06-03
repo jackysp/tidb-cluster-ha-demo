@@ -35,28 +35,27 @@ for i in "${!CLUSTERS[@]}"; do
     --sink-uri "mysql://root@${CLUSTER_IP}:${SQL_PORT}"
 done
 
-## Step 2: compare latest primary_ts of each cluster and mark most recent as new primary
-#NEW_PRIMARY_CLUSTER=""
-#NEW_PRIMARY_TS=0
-#NEW_PRIMARY_CLUSTER_INDEX=0
-#declare -a PRIMARY_TS_LIST SECONDARY_TS_LIST
-#for i in "${!CLUSTERS[@]}"; do
-#  CLUSTER_IP=${CLUSTER_IPS[i]}
-#  SQL_PORT=${CLUSTER_PORTS[i]}
-#  read PRIMARY_TS SECONDARY_TS <<< $(mysql -h $CLUSTER_IP -P $SQL_PORT -u root -N -e \
-#    "SELECT IFNULL(MAX(CAST(primary_ts AS UNSIGNED)),0), IFNULL(MAX(CAST(secondary_ts AS UNSIGNED)),0) FROM tidb_cdc.syncpoint_v1")
-#  PRIMARY_TS_LIST[i]=$PRIMARY_TS
-#  SECONDARY_TS_LIST[i]=$SECONDARY_TS
-#  if [ $PRIMARY_TS -gt $NEW_PRIMARY_TS ]; then
-#    NEW_PRIMARY_TS=$PRIMARY_TS
-#    NEW_PRIMARY_CLUSTER_INDEX=$i
-#  fi
-#done
-#NEW_PRIMARY_CLUSTER_IP=${CLUSTER_IPS[NEW_PRIMARY_CLUSTER_INDEX]}
-#NEW_PRIMARY_CLUSTER_PORT=${CLUSTER_PORTS[NEW_PRIMARY_CLUSTER_INDEX]}
-#NEW_PRIMARY_CLUSTER_CDC_PORT=${CLUSTER_CDC_PORTS[NEW_PRIMARY_CLUSTER_INDEX]}
-#echo "New primary cluster: $NEW_PRIMARY_CLUSTER_IP:$NEW_PRIMARY_CLUSTER_PORT with primary_ts $NEW_PRIMARY_TS"
-#
+# Step 2: determine new primary based on redo meta
+echo "Checking resolved ts for each redo storage"
+NEW_PRIMARY_TS=0
+NEW_PRIMARY_CLUSTER_INDEX=0
+for i in "${!CLUSTERS[@]}"; do
+  STORAGE=${CDC_STORAGE_PATHS[i]}
+  echo "  Fetching meta for $STORAGE"
+  META_OUTPUT=$(tiup cdc redo meta --storage "$STORAGE" 2>/dev/null)
+  RESOLVED_TS=$(echo "$META_OUTPUT" | grep -Eo 'resolved-ts:[[:space:]]*[0-9]+' | awk -F: '{print $2}' | tr -d ' ')
+  echo "    Resolved-ts for ${CLUSTERS[i]}: $RESOLVED_TS"
+  if [[ "$RESOLVED_TS" -gt "$NEW_PRIMARY_TS" ]]; then
+    NEW_PRIMARY_TS=$RESOLVED_TS
+    NEW_PRIMARY_CLUSTER_INDEX=$i
+  fi
+done
+NEW_PRIMARY_CLUSTER=${CLUSTERS[$NEW_PRIMARY_CLUSTER_INDEX]}
+NEW_PRIMARY_CLUSTER_IP=${CLUSTER_IPS[$NEW_PRIMARY_CLUSTER_INDEX]}
+NEW_PRIMARY_CLUSTER_PORT=${CLUSTER_PORTS[$NEW_PRIMARY_CLUSTER_INDEX]}
+NEW_PRIMARY_CLUSTER_CDC_PORT=${CLUSTER_CDC_PORTS[$NEW_PRIMARY_CLUSTER_INDEX]}
+echo "New primary cluster: $NEW_PRIMARY_CLUSTER ($NEW_PRIMARY_CLUSTER_IP:$NEW_PRIMARY_CLUSTER_PORT) with resolved-ts $NEW_PRIMARY_TS"
+
 ## Step 3 & 4: for each downstream cluster, compute start TS and create changefeed
 #echo "Recreating changefeeds from new primary $NEW_PRIMARY_CLUSTER_IP:$NEW_PRIMARY_CLUSTER_PORT"
 ## iterate by index
@@ -74,4 +73,3 @@ done
 #    --start-ts=$START_TS \
 #    --config=./cdc_config.toml
 #done
-#

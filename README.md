@@ -1,6 +1,6 @@
 # TiDB Cluster HA Demo
 
-This repository demonstrates a high availability (HA) setup for TiDB clusters. In this demo, we have four clusters: A, B, C, and D. Cluster A is the primary cluster, and there are three changefeeds syncing data from A to B, A to C, and A to D. We enable CDC syncpoint for each changefeed and also enable PiTR for these four clusters.
+This repository demonstrates a high availability (HA) setup for TiDB clusters. In this demo, we have four clusters: A, B, C, and D. Cluster A is the primary cluster, and there are three changefeeds syncing data from A to B, A to C, and A to D. We enable CDC syncpoint for each changefeed and also enable CDC redo for primary cluster.
 
 ## Cluster IP Map
 
@@ -43,12 +43,14 @@ The TiDB version used in this demo is v8.5.1.
 
 ## Recovering Clusters and Recreating Changefeeds in Case of Failure
 
-1. In case of failure of cluster A, check the syncpoint table in clusters B, C, and D to determine which one has the latest data from A.
-2. Use Flashback to revert clusters B, C, and D to their latest consistent snapshot.
+- Identify which downstream cluster has the most up-to-date redo logs by examining each changefeed’s resolved-ts via `tiup cdc redo meta`.
+- Run the recovery script to apply redo logs and recreate changefeeds from the recovered primary:
 
-> **Note:** FLASHBACK only reverts DML changes to the specified TSO. It cannot undo DDLs executed after that point. Ensure you wait for a fresh CDC syncpoint covering any DDLs before recovery.
+  ```bash
+  ./recover_clusters.sh
+  ```
 
-3. Recreate the changefeed from the recovered cluster to the other clusters by following the instructions in the `scripts/recover_clusters.sh` script.
+> **Note:** The script uses `tiup cdc redo apply` to replay changes and then generates new changefeeds from the new primary. Ensure the `/tidb-data/<cluster>/redo/*` directories exist and are writable.
 
 ## Enabling Stale Reads on Secondary Clusters (Minimal Changes)
 
